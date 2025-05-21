@@ -1,2 +1,3 @@
 Sacamos la 0.0.1
 Sacamos la 1.0.1
+Sacamos la 1.0.2
