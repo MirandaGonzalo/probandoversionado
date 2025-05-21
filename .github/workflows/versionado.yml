@@ -1,4 +1,4 @@
-name: Versioning
+name: Version Tagging
 
 on:
   push:
@@ -8,51 +8,53 @@ on:
       - develop
 
 jobs:
-  versioning:
+  tag-version:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clonar el repositorio
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0  # Necesario para leer todos los tags
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Calcular nueva versión
-        id: calc_version
+      - name: Set up Git config
         run: |
-          branch=${GITHUB_REF#refs/heads/}
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
-          echo "Último tag encontrado: $latest_tag"
+          git config user.name "MirandaGonzalo"
+          git config user.email "MirandaGonzalo@users.noreply.github.com"
 
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$latest_tag"
+      - name: Fetch tags
+        run: git fetch --tags
 
-          if [[ "$branch" == "main" ]]; then
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-          elif [[ "$branch" == "release" ]]; then
-            MINOR=$((MINOR + 1))
-            PATCH=0
-          elif [[ "$branch" == "develop" ]]; then
-            PATCH=$((PATCH + 1))
+      - name: Get last tag
+        id: get_tag
+        run: |
+          tag=$(git tag --sort=-v:refname | head -n 1)
+          echo "Last tag: $tag"
+          echo "tag=${tag:-0.0.0}" >> $GITHUB_OUTPUT
+
+      - name: Calculate new version
+        id: version
+        run: |
+          OLD_VERSION=${{ steps.get_tag.outputs.tag }}
+          IFS='.' read -r major minor patch <<< "$OLD_VERSION"
+
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            major=$((major + 1))
+            minor=0
+            patch=0
+          elif [[ "${GITHUB_REF##*/}" == "release" ]]; then
+            minor=$((minor + 1))
+            patch=0
           else
-            echo "Rama no soportada para versionado automático"
-            exit 1
+            patch=$((patch + 1))
           fi
 
-          NEW_TAG="$MAJOR.$MINOR.$PATCH"
-          echo "Generando nuevo tag: $NEW_TAG"
+          NEW_VERSION="$major.$minor.$patch"
+          echo "New version: $NEW_VERSION"
+          echo "new_tag=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
-
-      - name: Crear y pushear nuevo tag
+      - name: Create and push new tag
         env:
-          TOKEN: ${{ secrets.GH_TOKEN }}
+          TOKEN: ${{ secrets.PERSONAL_TOKEN }}
         run: |
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-
-          git tag ${{ steps.calc_version.outputs.new_tag }}
-
-          git remote set-url origin https://${TOKEN}@github.com/${{ github.repository }}.git
-          git push origin ${{ steps.calc_version.outputs.new_tag }}
+          git tag ${{ steps.version.outputs.new_tag }}
+          git remote set-url origin https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git
+          git push origin ${{ steps.version.outputs.new_tag }}
