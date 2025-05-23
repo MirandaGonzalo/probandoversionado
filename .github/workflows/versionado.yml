@@ -57,6 +57,12 @@ jobs:
         env:
           TOKEN: ${{ secrets.PERSONAL_TOKEN }}
         run: |
-          git tag ${{ steps.version.outputs.new_tag }}
-          git remote set-url origin https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git
-          git push origin ${{ steps.version.outputs.new_tag }}
+          TAG=${{ steps.version.outputs.new_tag }}
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "El tag $TAG ya existe. No se creará de nuevo."
+          else
+            git tag $TAG
+            git remote set-url origin https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git
+            git push origin $TAG
+          fi
